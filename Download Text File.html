@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RMC</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+    <input type="file" id="excelFile" />
+    <div id="tableContainer">
+        <table id="dataTable">
+            <!-- Table data will be inserted here dynamically using JavaScript -->
+        </table>
+    </div>
+    <div class="button-container">
+        <button onclick="downloadTextFile()">Download Data</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script>
+        let dataFromExcel;
+
+        document.getElementById("excelFile").addEventListener("change", handleFile, false);
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: "array" });
+
+                // Assuming the first sheet is the one you want to read
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+
+                // Parse the sheet data with header information
+                dataFromExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                // Rest of your code...
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function displayDataInTable(htmlData) {
+            const table = document.getElementById("dataTable");
+            table.innerHTML = htmlData;
+        }
+
+        function exportToTextFile() {
+            if (!dataFromExcel) {
+                alert("No data available to export.");
+                return;
+            }
+
+            let textContent = "";
+
+            dataFromExcel.forEach(row => {
+                row.forEach((cell, index) => {
+                    if (index !== 0) {
+                        textContent += cell + "\t"; // Use tab as delimiter between cells
+                    }
+                });
+                textContent += "\n"; // Add newline after each row
+            });
+
+            // Create a Blob to save the text content
+            const blob = new Blob([textContent], { type: "text/plain" });
+
+            // Create a temporary anchor element to trigger the download
+            const anchor = document.createElement("a");
+            anchor.href = URL.createObjectURL(blob);
+            anchor.download = "excel_data.txt"; // Set the file name
+            anchor.click();
+
+            // Clean up
+            URL.revokeObjectURL(anchor.href);
+        }
+
+
+        function downloadTextFile() {
+            const trimmedDataArray = JSON.parse(localStorage.getItem('excelData'));
+
+            if (trimmedDataArray) {
+                let textContent = "";
+
+                // Create the text content from the trimmed data array
+                trimmedDataArray.forEach(item => {
+                    textContent += `${item.key}: ${item.value}\n`;
+                });
+
+                // Create a Blob containing the text content
+                const blob = new Blob([textContent], { type: 'text/plain' });
+
+                // Create a URL for the Blob
+                const url = URL.createObjectURL(blob);
+
+                // Create an anchor element with the URL and download the file
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'key_value_data.txt';
+                a.click();
+
+                // Clean up the URL object to release resources
+                URL.revokeObjectURL(url);
+            } else {
+                alert("No data available to download.");
+            }
+        }
+
+    </script>
+</body>
+
+</html>

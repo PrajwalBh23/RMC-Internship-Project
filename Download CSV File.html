@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RMC</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+    <input type="file" id="excelFile" />
+    <div id="tableContainer">
+        <table id="dataTable">
+            <!-- Table data will be inserted here dynamically using JavaScript -->
+        </table>
+    </div>
+    <div class="button-container">
+        <button onclick="downloadDataAsText()">Download CSV File</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+
+    <script>
+        let dataFromExcel;
+
+        document.getElementById("excelFile").addEventListener("change", handleFile, false);
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: "array" });
+
+                // Assuming the first sheet is the one you want to read
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+
+                // Parse the sheet data with header information
+                dataFromExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                // Find the index of the row containing "MET.SUB/DISTRICT/STATION"
+                const targetRowIndex = dataFromExcel.findIndex(row => row.some(cell => {
+                    if (typeof cell === 'string') {
+                        return cell.includes("MET.SUB/DISTRICT/STATION");
+                    }
+                    return false;
+                }));
+
+                if (targetRowIndex !== -1) {
+                    // Get the today's day
+                    const today = new Date();
+                    const todayDay = today.getDate();
+
+                    // Get the column index for the today's day
+                    const dateColumnIndex = dataFromExcel[targetRowIndex].indexOf(todayDay);
+
+                    // Create an array to store the data with the first row as keys and the values as the rest of the rows
+                    const dataArray = dataFromExcel.map((row, index) => {
+                        if (dateColumnIndex !== -1) {
+                            return { key: row[0], value: index === targetRowIndex ? "MET.SUB/DISTRICT/STATION" : row[dateColumnIndex] };
+                        } else {
+                            return { key: row[0], value: index === targetRowIndex ? "MET.SUB/DISTRICT/STATION" : "Value not found for today" };
+                        }
+                    });
+
+                    // Remove rows before row 14 and after row 200
+                    const startIndex = 14;
+                    const endIndex = 190;
+                    const trimmedDataArray = dataArray.slice(startIndex, endIndex + 1);
+
+                    // Convert the data array to HTML format
+                    const htmlData = XLSX.utils.sheet_to_html(XLSX.utils.json_to_sheet(trimmedDataArray));
+
+                    // Call the function to display the data in the table
+                    displayDataInTable(htmlData);
+
+                    // Save trimmed data to local storage
+                    localStorage.setItem('excelData', JSON.stringify(trimmedDataArray));
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function displayDataInTable(htmlData) {
+            const table = document.getElementById("dataTable");
+            table.innerHTML = htmlData;
+        }
+
+        function downloadDataAsText() {
+            // Retrieve the data from local storage
+            const storedData = localStorage.getItem('excelData');
+
+            // Check if the data is defined and not empty
+            if (storedData) {
+                const dataArray = JSON.parse(storedData);
+
+                // Create a string representation of the data in CSV format
+                let csvData = dataArray.reduce((csv, row) => {
+                    // Check if the "Key" is defined and not empty
+                    if (row.key !== undefined && row.key.trim() !== '') {
+                        // If the "Value" is undefined, write only the "Key"
+                        if (row.value === undefined) {
+                            csv += `${row.key},\n`; // Leave the "Value" column blank
+                        } else {
+                            csv += `${row.key},${row.value}\n`;
+                        }
+                    }
+                    return csv;
+                }, 'Key,Value\n');
+
+                // Create a Blob with the CSV data
+                const blob = new Blob([csvData], { type: 'text/plain' });
+
+                // Create a temporary anchor element to trigger the download
+                const downloadLink = document.createElement('a');
+                downloadLink.href = URL.createObjectURL(blob);
+                downloadLink.download = 'data.csv'; // You can change the filename if needed
+
+                // Append the anchor element to the DOM and trigger the download
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+
+                // Clean up by removing the temporary anchor element
+                document.body.removeChild(downloadLink);
+            } else {
+                alert("No data found in local storage!");
+            }
+
+        }
+
+
+    </script>
+
+</body>
+
+</html>
